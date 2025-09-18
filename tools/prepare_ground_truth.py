@@ -22,8 +22,8 @@ CSV_OUTPUT_DIR = os.path.join(project_root, 'data', '03_processed_csVs', 'ground
 VIDEO_OUTPUT_DIR = os.path.join(project_root, 'data', '03_processed_csVs', 'ground_truth_output', 'videos')
 
 # --- Settings ---
-GENERATE_VIDEOS = True  # Set to False to only generate CSVs and skip video creation
-CONFIRMATION_FRAMES = 10
+GENERATE_VIDEOS = False  # Set to False to only generate CSVs and skip video creation
+CONFIRMATION_FRAMES = 5
 VIDEO_FPS = 30
 START_TIMER = 40.0
 # ==========================================================
@@ -113,11 +113,14 @@ def process_single_npz(npz_path):
 
     # --- 4. Final Formatting and Save CSV ---
     df = df[['Frame', 'P1_Health', 'P2_Health', 'Normalized_Game_Timer']]
-    # Apply rounding to 2 decimal places as a final step
-    df = df.round(2)
+    # UPDATED: Round health to 2 decimal places and timer to 3.
+    df['P1_Health'] = df['P1_Health'].round(2)
+    df['P2_Health'] = df['P2_Health'].round(2)
+    df['Normalized_Game_Timer'] = df['Normalized_Game_Timer'].round(3)
     
     output_csv_path = os.path.join(CSV_OUTPUT_DIR, f"{base_filename}.csv")
-    df.to_csv(output_csv_path, index=False, float_format='%.2f')
+    # The .round() method handles the precision. Saving without float_format is clean.
+    df.to_csv(output_csv_path, index=False)
     print(f"  SUCCESS: Processed CSV saved to data/03.../{base_filename}.csv")
 
     # --- 5. Optional Video Generation (from read_npz.py logic) ---
@@ -168,5 +171,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 

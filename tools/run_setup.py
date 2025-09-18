@@ -18,7 +18,7 @@ from tekken_vision.health_detector import find_bar_edges, count_pixels_for_calib
 # ==========================================================
 CONFIG_FILE_PATH = os.path.join(project_root, 'config.json')
 SAMPLE_VIDEO_DIR = os.path.join(project_root, 'data', '01_raw_videos')
-FRAME_FOR_SETUP = 3 # Use a specific frame for consistent setup
+FRAME_FOR_SETUP = 3 # Default starting frame for calibration
 
 # ==========================================================
 # 2. Interactive Setup Classes & Functions
@@ -48,7 +48,6 @@ def get_hsv_from_click(event, x, y, flags, param):
         
         # Average a small box around the click for a more stable color reading
         roi_box = line_roi[0:1, max(original_x - 2, 0):min(original_x + 3, line_roi.shape[1])]
-        # FIX: Corrected the OpenCV constant from COLOR_BGR_HSV to COLOR_BGR2HSV
         avg_hsv = np.mean(cv2.cvtColor(roi_box, cv2.COLOR_BGR2HSV), axis=(0, 1))
         
         # Store the result
@@ -56,12 +55,12 @@ def get_hsv_from_click(event, x, y, flags, param):
         clicked_hsv_list.append(avg_hsv)
         print(f"  Stored Average HSV: H:{int(avg_hsv[0])}, S:{int(avg_hsv[1])}, V:{int(avg_hsv[2])}")
 
-def interactive_color_calibration(frame, start_point, end_point):
+def interactive_color_calibration(frame, start_point, end_point, player_name):
     """
     Opens a window for the user to click on an enlarged health bar segment
     to select its core color and define a color range from it.
     """
-    print("\n--- Calibrating Health Bar Color ---")
+    print(f"\n--- Calibrating Color for {player_name} ---")
     print("1. An enlarged image of the health bar will appear.")
     print("2. Click on the most representative part of the health bar color.")
     print("3. After you click, press any key in the window to confirm and continue.")
@@ -70,7 +69,7 @@ def interactive_color_calibration(frame, start_point, end_point):
     x2, _ = end_point
     line_roi = frame[y1:y1 + 1, x1:x2 + 1]
     
-    window_name = 'Click to Select Health Bar Color'
+    window_name = f'Click to Select {player_name} Color'
     cv2.namedWindow(window_name)
     
     # Enlarge the tiny ROI for easier clicking
@@ -136,20 +135,25 @@ def run_health_bar_setup(frame):
     p1_rough_start, p1_rough_end = setup_helper.line_points[0], setup_helper.line_points[1]
     p1_start, p1_end = find_bar_edges(frame, p1_rough_start, p1_rough_end, temp_lower, temp_upper)
     
-    # Get the precise color range from user input, assuming both bars are the same color
-    lower_range, upper_range = interactive_color_calibration(frame, p1_start, p1_end)
-    
-    print("  Refining bar edges with calibrated color values...")
-    p1_start, p1_end = find_bar_edges(frame, p1_rough_start, p1_rough_end, lower_range, upper_range)
     p2_rough_start, p2_rough_end = setup_helper.line_points[2], setup_helper.line_points[3]
-    p2_start, p2_end = find_bar_edges(frame, p2_rough_start, p2_rough_end, lower_range, upper_range)
+    p2_start, p2_end = find_bar_edges(frame, p2_rough_start, p2_rough_end, temp_lower, temp_upper)
 
-    # Count the pixels at full health for normalization
-    # This assumes the setup frame shows both players at full health
-    p1_max_pixels = count_pixels_for_calibration(frame, p1_start, p1_end, lower_range, upper_range)
-    p2_max_pixels = count_pixels_for_calibration(frame, p2_start, p2_end, lower_range, upper_range)
+    # --- NEW: Separate color calibration for each player ---
+    p1_lower, p1_upper = interactive_color_calibration(frame, p1_start, p1_end, "Player 1")
+    p2_lower, p2_upper = interactive_color_calibration(frame, p2_start, p2_end, "Player 2")
+    
+    print("\n  Refining bar edges with calibrated color values...")
+    p1_start, p1_end = find_bar_edges(frame, p1_rough_start, p1_rough_end, p1_lower, p1_upper)
+    p2_start, p2_end = find_bar_edges(frame, p2_rough_start, p2_rough_end, p2_lower, p2_upper)
 
-    return p1_start, p1_end, p2_start, p2_end, lower_range, upper_range, p1_max_pixels, p2_max_pixels
+    # Count pixels using each player's specific color range
+    p1_max_pixels = count_pixels_for_calibration(frame, p1_start, p1_end, p1_lower, p1_upper)
+    p2_max_pixels = count_pixels_for_calibration(frame, p2_start, p2_end, p2_lower, p2_upper)
+
+    return (p1_start, p1_end, p2_start, p2_end, 
+            p1_lower, p1_upper, p2_lower, p2_upper, 
+            p1_max_pixels, p2_max_pixels)
+
 
 def run_timer_roi_setup(frame):
     """Allows the user to select the timer's region of interest (ROI)."""
@@ -260,15 +264,19 @@ def main():
         return
 
     # --- Assemble and Save Configuration ---
-    p1_start, p1_end, p2_start, p2_end, lower, upper, p1_pixels, p2_pixels = health_results
+    (p1_start, p1_end, p2_start, p2_end, 
+     p1_lower, p1_upper, p2_lower, p2_upper, 
+     p1_pixels, p2_pixels) = health_results
     
-    # FIX: Explicitly cast all NumPy numeric types to standard Python types for JSON compatibility.
+    # Explicitly cast all NumPy numeric types to standard Python types for JSON compatibility.
     config_data = {
         "p1_coords": {"start": (int(p1_start[0]), int(p1_start[1])), "end": (int(p1_end[0]), int(p1_end[1]))},
         "p2_coords": {"start": (int(p2_start[0]), int(p2_start[1])), "end": (int(p2_end[0]), int(p2_end[1]))},
         "p1_calibration": {"max_pixels": int(p1_pixels)},
         "p2_calibration": {"max_pixels": int(p2_pixels)},
-        "color_range": {"lower": [int(c) for c in lower], "upper": [int(c) for c in upper]},
+        # --- NEW: Storing separate color ranges ---
+        "p1_color_range": {"lower": [int(c) for c in p1_lower], "upper": [int(c) for c in p1_upper]},
+        "p2_color_range": {"lower": [int(c) for c in p2_lower], "upper": [int(c) for c in p2_upper]},
         "timer_roi": [int(c) for c in timer_roi] # Convert tuple to a list of standard ints
     }
     
