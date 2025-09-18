@@ -1,0 +1,25 @@
+# Python cache files and artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment folders
+venv/
+.venv/
+env/
+.env/
+
+# IDE and editor-specific configuration files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# CRITICAL: Ignore all data files.
+# This prevents large videos, npz files, and generated CSVs
+# from being uploaded to your GitHub repository.
+data/
+
+# ignore the generated reports.
+benchmarking/reports/

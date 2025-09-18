@@ -1,0 +1,11 @@
+pandas
+numpy
+opencv-python
+easyocr
+torch
+torchvision
+torchaudio
+matplotlib
+seaborn
+scipy
+tqdm

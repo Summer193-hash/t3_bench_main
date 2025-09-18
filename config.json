@@ -1,0 +1,46 @@
+{
+    "p1_coords": {
+        "start": [
+            24,
+            28
+        ],
+        "end": [
+            327,
+            28
+        ]
+    },
+    "p2_coords": {
+        "start": [
+            408,
+            28
+        ],
+        "end": [
+            711,
+            28
+        ]
+    },
+    "p1_calibration": {
+        "max_pixels": 304
+    },
+    "p2_calibration": {
+        "max_pixels": 304
+    },
+    "color_range": {
+        "lower": [
+            83,
+            126,
+            197
+        ],
+        "upper": [
+            93,
+            226,
+            255
+        ]
+    },
+    "timer_roi": [
+        334,
+        3,
+        68,
+        50
+    ]
+}
